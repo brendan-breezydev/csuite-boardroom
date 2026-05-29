@@ -3,6 +3,7 @@ C-Suite Boardroom — FastAPI application.
 Serves the React frontend as static files and exposes the boardroom SSE API.
 """
 import asyncio
+import json as _json
 import os
 import uuid
 from pathlib import Path
@@ -66,9 +67,15 @@ async def stream_boardroom(session_id: str):
     async def event_generator():
         try:
             while True:
-                event_str = await asyncio.wait_for(queue.get(), timeout=120.0)
+                try:
+                    event_str = await asyncio.wait_for(queue.get(), timeout=15.0)
+                except asyncio.TimeoutError:
+                    # Send SSE keepalive comment — invisible to browser, prevents
+                    # proxy/load-balancer idle-connection timeout
+                    yield ": ping\n\n"
+                    continue
+
                 yield event_str
-                import json as _json
                 try:
                     parsed = _json.loads(event_str.removeprefix("data: ").strip())
                     if parsed.get("type") in ("done", "error"):
@@ -76,8 +83,7 @@ async def stream_boardroom(session_id: str):
                         break
                 except Exception:
                     pass
-        except asyncio.TimeoutError:
-            yield f"data: {{\"type\": \"error\", \"message\": \"Session timed out.\"}}\n\n"
+        except Exception:
             _sessions.pop(session_id, None)
 
     return StreamingResponse(

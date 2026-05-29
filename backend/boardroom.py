@@ -16,7 +16,10 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from backend import sse_events as ev
 from backend.agents.ceo_agent import (
-    build_ceo_graph,
+    problem_extractor,
+    option_generator,
+    option_evaluator,
+    best_solution_selector,
     stream_ceo_opening,
 )
 from backend.agents.cfo_agent import CFOAgent
@@ -111,24 +114,35 @@ async def _synthesize_boardroom(
 async def run_boardroom(situation: str, session_id: str, queue: asyncio.Queue) -> None:
     try:
         # ------------------------------------------------------------------
-        # Phase 1: CEO pipeline
+        # Phase 1: CEO pipeline — each node runs separately so SSE events
+        # flow between calls and the connection stays alive.
         # ------------------------------------------------------------------
         await queue.put(ev.phase_start(1, "Problem Analysis & Option Generation"))
 
-        await queue.put(ev.node_start("CEO", "problem_extractor", "Extracting the real decision..."))
+        state: BoardroomState = {"situation": situation, "session_id": session_id}
 
-        ceo_graph = build_ceo_graph()
-        state: BoardroomState = await asyncio.to_thread(
-            ceo_graph.invoke, {"situation": situation, "session_id": session_id}
-        )
+        # Node 1: Extract the real decision (~15s)
+        await queue.put(ev.node_start("CEO", "problem_extractor", "Extracting the real decision..."))
+        state.update(await asyncio.to_thread(problem_extractor, state))
+        await queue.put(ev.node_complete("CEO", "problem_extractor", state["problem"].model_dump()))
+
+        # Node 2: Generate options (~20s)
+        await queue.put(ev.node_start("CEO", "option_generator", "Generating strategic options..."))
+        state.update(await asyncio.to_thread(option_generator, state))
+        await queue.put(ev.options_ready([o.model_dump() for o in state["options"]]))
+
+        # Node 3: Evaluate options across rubric (~25s)
+        await queue.put(ev.node_start("CEO", "option_evaluator", "Scoring options across all dimensions..."))
+        state.update(await asyncio.to_thread(option_evaluator, state))
+
+        # Node 4: Select best (instant — local logic only)
+        await queue.put(ev.node_start("CEO", "best_solution_selector", "Selecting recommendation..."))
+        state.update(best_solution_selector(state))
 
         problem = state["problem"]
         options = state["options"]
         ceo_evaluations = state["ceo_evaluations"]
         ceo_recommendation = state["ceo_recommendation"]
-
-        await queue.put(ev.node_complete("CEO", "problem_extractor", problem.model_dump()))
-        await queue.put(ev.options_ready([o.model_dump() for o in options]))
 
         # Stream CEO opening statement
         await queue.put(ev.node_start("CEO", "opening", "CEO opening statement..."))
