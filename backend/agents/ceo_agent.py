@@ -3,12 +3,10 @@ CEO Agent — migrated from ceo_mind/ceo_graph.py, now using Claude.
 Runs the 4-node pipeline: problem_extractor → option_generator → option_evaluator → best_solution_selector.
 Also exposes async helpers used by the boardroom orchestrator for streaming.
 """
-from __future__ import annotations
-
 import json
 import os
 from pathlib import Path
-from typing import AsyncIterator, List
+from typing import AsyncIterator
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -17,6 +15,7 @@ from langgraph.graph import StateGraph, END
 
 from backend.models import (
     Problem, Option, DimensionScore, OptionEvaluation, Recommendation, BoardroomState,
+    OptionList, OptionEvaluationList,
 )
 
 
@@ -73,7 +72,7 @@ def problem_extractor(state: BoardroomState) -> BoardroomState:
 
 
 def option_generator(state: BoardroomState) -> BoardroomState:
-    llm = _llm().with_structured_output(List[Option])
+    llm = _llm().with_structured_output(OptionList)
     rules = "\n".join(f"- {r}" for r in OPTION_RULES)
     messages = [
         SystemMessage(content=SYSTEM_PROMPT),
@@ -81,17 +80,17 @@ def option_generator(state: BoardroomState) -> BoardroomState:
             f"Actual decision: {state['problem'].actual_decision}\n\n"
             f"Constraints: {state['problem'].constraints}\n\n"
             f"Option generation rules:\n{rules}\n\n"
-            "Return at least 3 structurally distinct options. "
+            "Return at least 3 structurally distinct options in the 'options' field. "
             "Each option must declare its key_assumption and kill_condition. "
             "One option MUST be a 'do nothing / wait' option."
         )),
     ]
-    options = llm.invoke(messages)
-    return {"options": options}
+    result = llm.invoke(messages)
+    return {"options": result.options}
 
 
 def option_evaluator(state: BoardroomState) -> BoardroomState:
-    llm = _llm().with_structured_output(List[OptionEvaluation])
+    llm = _llm().with_structured_output(OptionEvaluationList)
     options_payload = [o.model_dump() for o in state["options"]]
     messages = [
         SystemMessage(content=SYSTEM_PROMPT),
@@ -102,11 +101,12 @@ def option_evaluator(state: BoardroomState) -> BoardroomState:
             f"Red flags to check:\n- " + "\n- ".join(RED_FLAGS) + "\n\n"
             "For EACH option, score every dimension from its owning archetype's "
             "perspective. Compute weighted_score = sum(score_i * weight_i). "
-            "Flag vetoes (score <= veto_threshold). Record the strongest dissent."
+            "Flag vetoes (score <= veto_threshold). Record the strongest dissent. "
+            "Return all evaluations in the 'evaluations' field."
         )),
     ]
-    evaluations = llm.invoke(messages)
-    return {"ceo_evaluations": evaluations}
+    result = llm.invoke(messages)
+    return {"ceo_evaluations": result.evaluations}
 
 
 def best_solution_selector(state: BoardroomState) -> BoardroomState:
@@ -141,7 +141,7 @@ def best_solution_selector(state: BoardroomState) -> BoardroomState:
 # Streaming helper for boardroom orchestrator
 # ---------------------------------------------------------------------------
 
-async def stream_ceo_opening(problem: Problem, options: List[Option]) -> AsyncIterator[str]:
+async def stream_ceo_opening(problem: Problem, options: list[Option]) -> AsyncIterator[str]:
     """Stream the CEO's opening statement as text chunks."""
     llm = ChatAnthropic(
         model="claude-sonnet-4-6",

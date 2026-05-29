@@ -2,7 +2,6 @@
 SSE event helpers for the boardroom streaming API.
 All events are dicts serialized as JSON on the `data:` line of the SSE stream.
 """
-from __future__ import annotations
 
 import json
 from typing import Any

@@ -2,12 +2,10 @@
 BaseAgent — abstract base for all C-suite exec agents.
 Each concrete agent loads a persona JSON and wraps ChatAnthropic.
 """
-from __future__ import annotations
-
 import json
 import os
 from pathlib import Path
-from typing import AsyncIterator, List
+from typing import AsyncIterator
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -46,7 +44,7 @@ class BaseAgent:
         return "Red flags to check:\n" + "\n".join(f"- {f}" for f in flags)
 
     async def stream_opening(
-        self, options: List[Option], problem: Problem
+        self, options: list[Option], problem: Problem
     ) -> AsyncIterator[str]:
         """Stream the exec's opening statement as text chunks."""
         options_summary = "\n".join(
@@ -67,7 +65,7 @@ class BaseAgent:
                 yield chunk.content
 
     async def evaluate_options(
-        self, options: List[Option], problem: Problem
+        self, options: list[Option], problem: Problem
     ) -> ExecEvaluation:
         """Return a structured evaluation of all options."""
         llm_structured = self.llm.with_structured_output(ExecEvaluation)

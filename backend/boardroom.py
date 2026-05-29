@@ -7,12 +7,9 @@ Pipeline:
   Phase 2 (execs): cfo → coo → cmo → cto  (sequential so SSE animates one exec at a time)
   Phase 3: boardroom_synthesis
 """
-from __future__ import annotations
-
 import asyncio
 import json
 import os
-from typing import List
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -51,7 +48,7 @@ def _synthesis_llm() -> ChatAnthropic:
 
 async def _synthesize_boardroom(
     problem: Problem,
-    options: List[Option],
+    options: list[Option],
     ceo_recommendation,
     cfo_eval: ExecEvaluation,
     coo_eval: ExecEvaluation,

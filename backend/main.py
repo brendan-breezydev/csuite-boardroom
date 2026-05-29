@@ -2,8 +2,6 @@
 C-Suite Boardroom — FastAPI application.
 Serves the React frontend as static files and exposes the boardroom SSE API.
 """
-from __future__ import annotations
-
 import asyncio
 import os
 import uuid
