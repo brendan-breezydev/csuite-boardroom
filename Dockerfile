@@ -7,8 +7,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ── Stage 2: React build ───────────────────────────────────────────────────
 FROM node:20-slim AS frontend-build
 WORKDIR /frontend
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm ci
+COPY frontend/package.json ./
+RUN npm install
 COPY frontend/ .
 RUN npm run build
 
