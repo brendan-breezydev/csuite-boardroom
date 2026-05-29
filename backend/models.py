@@ -20,17 +20,17 @@ class Problem(BaseModel):
 class Option(BaseModel):
     name: str
     summary: str
-    mechanism: str = Field(..., description="How this option actually works.")
-    key_assumption: str
-    kill_condition: str = Field(..., description="The single observation that would prove this option wrong.")
-    archetype_lean: str = Field(..., description="buffett | cook | doronin | hybrid")
+    mechanism: str = Field("", description="How this option actually works.")
+    key_assumption: str = Field("", description="The key assumption this option depends on.")
+    kill_condition: str = Field("", description="The single observation that would prove this option wrong.")
+    archetype_lean: str = Field("hybrid", description="buffett | cook | doronin | hybrid")
 
 
 class DimensionScore(BaseModel):
     dimension_id: str
     owner: str
     score: int = Field(..., ge=0, le=10)
-    rationale: str
+    rationale: str = ""
 
 
 class OptionEvaluation(BaseModel):
